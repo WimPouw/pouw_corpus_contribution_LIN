@@ -10,7 +10,7 @@
 
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-<meta name="author" content="Wim Pouw (wimpouw@gmail.com)" />
+<meta name="author" content="Wim Pouw (wim.pouw@donders.ru.nl)" />
 
 
 <title>Gesture kinematics report for the language in interaction corpus</title>
@@ -159,7 +159,7 @@ a.sourceLine {
 <div class="inner">
 <header>
 <h1 class="title toc-ignore">Gesture kinematics report for the language in interaction corpus</h1>
-<h3 class="author">Wim Pouw (<a href="mailto:wimpouw@gmail.com" class="email">wimpouw@gmail.com</a>)</h3>
+<h3 class="author">Wim Pouw (<a href="mailto:wim.pouw@donders.ru.nl" class="email">wim.pouw@donders.ru.nl</a>)</h3>
 </header>
 
 <hr>
@@ -168,12 +168,12 @@ a.sourceLine {
 
 <div id="motion-tracking-processing-pipeline" class="section level3">
 <h3>Motion tracking processing pipeline</h3>
-<p>The kinect V2 was sampling at around 30Hz, and after the synchroniziation procedure, we resampled the data at exactly 30Hz using linear interpolation. the timeseries were further prepared to a) have variable name information, as well as time aligned information about the trials and rounds (“TO_TIME_SERIES_Outputfolder3.R”), and b) processed time series were made where we selected relevant body key points and smoothed the time series (“TO_TIME_SERIES_Outputfolder4.R”) which was then used for analysis as reported in this Rmarkdown document (“Kinect_Report_BIG_Data.Rmd”).</p>
+<p>The kinect V2 was sampling at around 30Hz, and after the synchronization procedure, we resampled the data at exactly 30Hz using linear interpolation. the timeseries were further prepared to a) have variable name information, as well as time aligned information about the trials and rounds ((“TO_TIME_SERIES_Outputfolder3.R”)[<a href="https://github.com/WimPouw/pouw_corpus_contribution_LIN/blob/main/TO_TIME_SERIES_Outputfolder3.R" class="uri">https://github.com/WimPouw/pouw_corpus_contribution_LIN/blob/main/TO_TIME_SERIES_Outputfolder3.R</a>]), and b) processed time series were made where we selected relevant body key points and smoothed the time series ((“TO_TIME_SERIES_Outputfolder4.R”)[<a href="https://github.com/WimPouw/pouw_corpus_contribution_LIN/blob/main/TO_TIME_SERIES_Outputfolder4.R" class="uri">https://github.com/WimPouw/pouw_corpus_contribution_LIN/blob/main/TO_TIME_SERIES_Outputfolder4.R</a>]) which was then used for analysis as reported in this Rmarkdown document ((“Kinect_Report_BIG_Data.Rmd”)[<a href="https://github.com/WimPouw/pouw_corpus_contribution_LIN/blob/main/Kinect_Report_BIG_Data.Rmd" class="uri">https://github.com/WimPouw/pouw_corpus_contribution_LIN/blob/main/Kinect_Report_BIG_Data.Rmd</a>]).</p>
 </div>
 <div id="auto-coding-procedure" class="section level3">
 <h3>Auto coding procedure</h3>
 <p>The autocoding procedure script (script: “TO_TIME_SERIES_Outputfolder4.R”) takes as input the time series from the kinect data from the folder (“3_SYNCED_KINECT_TIMESTAMPED”). The time series contains the hand timeseries sampling at 30Hz. The time series were smoothed to reduce noise-related jitter with a 2th order Kolmogorov–Zurbenko filter with a span of 3 frames (a type Gaussian moving average filter). We computed from the 3D position traces the speed of each keypoint in cm/s, which is crucial input for our movement detector.</p>
-<p>The movement detectors job is to try to detect segments of hand movements that are typically gestures. A simple automated rule-based approach was used here. This is procedure is similar as reported here (<a href="https://link.springer.com/chapter/10.1007%2F978-3-030-77817-0_20" class="uri">https://link.springer.com/chapter/10.1007%2F978-3-030-77817-0_20</a>). The autocoder operates on four rules, assessed right handtip speed:</p>
+<p>The movement detectors job is to try to detect segments of hand movements that are typically gestures. A simple automated rule-based approach was used here. This is procedure is similar as reported here (<a href="https://link.springer.com/chapter/10.1007%2F978-3-030-77817-0_20" class="uri">https://link.springer.com/chapter/10.1007%2F978-3-030-77817-0_20</a>). The autocoder operates on four rules, which is assessed for right handtip speed:</p>
 <ol style="list-style-type: decimal">
 <li><p>A movement is detected when the body part exceeds 15cm per second speed (15 cm/s is common movement start threshold in movement science).</p></li>
 <li><p>If this movement is next to another detected movement within 250 milliseconds, then they are merged as a single movement event. Note that for each gesture movement you’ll often have have two or multiple speed peaks, as the movement initiates, performs a stroke, maybe keeps in position and detracts. The right time interval for merging counts these segments as a single event.</p></li>
