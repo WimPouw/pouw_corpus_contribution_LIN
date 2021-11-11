@@ -1,0 +1,127 @@
+---
+title: "Gesture kinematics report for the language in interaction corpus"
+author: "Wim Pouw (wim.pouw@donders.ru.nl)"
+output: 
+  prettydoc::html_pretty:
+    theme: tactile
+---
+
+```{r setup, include=FALSE, echo = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r main, echo = FALSE, message = FALSE, warning = FALSE}
+#load packages
+library(ggplot2)      #plotting
+library(plotly)       #plotting
+library(papaja)       #markdown
+library(pracma)       #signal processing
+library(ggbeeswarm)   #plotting extras
+library(gridExtra)    #plotting extras
+#get folders
+basefolder <- dirname(getwd()) #get path of current R doc (FIRST go to session and set working directory to source file location)
+MTfolder4 <- paste0(basefolder, "/4_PROCESSED_FOR_ANALAYSIS/") #get path of current R doc
+MTS <- list.files(MTfolder4, pattern = "*.csv") #list the folder 4 motion tracking datafiles
+```
+### Motion tracking processing pipeline
+The kinect V2 was sampling at around 30Hz, and after the synchronization procedure, we resampled the data at exactly 30Hz using linear interpolation. the timeseries were further prepared to a) have variable name information, as well as time aligned information about the trials and rounds ("TO_TIME_SERIES_Outputfolder3.R"), and b) processed time series were made where we selected relevant body key points and smoothed the time series ("TO_TIME_SERIES_Outputfolder4.R") which was then used for analysis as reported in this Rmarkdown document ("Kinect_Report_BIG_Data.Rmd"). 
+
+### Auto coding procedure
+  The autocoding procedure script (script: "TO_TIME_SERIES_Outputfolder4.R") takes as input the time series from the kinect data from the folder ("3_SYNCED_KINECT_TIMESTAMPED"). The time series contains the hand timeseries sampling at 30Hz. The time series were smoothed to reduce noise-related jitter with a 2th order Kolmogorov–Zurbenko filter with a span of 3 frames (a type Gaussian moving average filter). We computed from the 3D position traces the speed of each keypoint in cm/s, which is crucial input for our movement detector.  
+  
+  The movement detectors job is to try to detect segments of hand movements that are typically gestures. A simple automated rule-based approach was used here. This is procedure is similar as reported here (https://link.springer.com/chapter/10.1007%2F978-3-030-77817-0_20). The autocoder operates on four rules, which is assessed for right handtip speed:  
+  
+1. A movement is detected when the body part exceeds 15cm per second speed (15 cm/s is common movement start threshold in movement science).  
+
+2. If this movement is next to another detected movement within 250 milliseconds, then they are merged as a single movement event. Note that for each gesture movement you'll often have have two or multiple speed peaks, as the movement initiates, performs a stroke, maybe keeps in position and detracts. The right time interval for merging counts these segments as a single event.
+
+3. If a movement takes less then 200 ms, it is ignored. This way very short movements with little content, are filtered out. However, if there are many such small movements they will - by rule 2 - be merged and treated as a relevant movement.
+
+4. Gesture space is confined to 1SD movement under the mean of vertical displacement. Participants in our study need to raise their hands a little, and often do raise their hands, to show their gestures to the other. If we apply this parameter such that we only count a movement the vertical position threshold our auto-coding improves. This also removes the issue that button presses are filtered out as much as possible as they are performed under the threshold.
+
+### Kinematic reduction of gesture
+  Gestures are not all born equal. Some are more salient or complex then others. To capture this over the different rounds we can quantify representative aspects of the trajectories.  Below we have computed per participant the within-round amount of gestures, the average number of submovements, the average gesture duration (seconds), the average distance traveled (in cm). The average number of submovemetns are is the number of peaks in the speed timeseries of the gesture event (with a minimum peak height of 15 cm/s); kinematic measures of peakedness of the timeseries has been found to relate to number of information units human annotators recognize in a gesture (Pouw, Dingemanse, Motamedi, Ozyurek, 2021). The kinematic features were computed for right-handed gestures only, to simplify our overview.  
+
+
+```{r kinematics_extract, warning = FALSE}
+
+#FUNCTION: get kinematics function
+get.kinematics <- function(ts) 
+  {
+  #for each gesture event get the relevant kinematic features
+  
+  #number of submovments
+  submov        <- nrow(findpeaks(ts$v_handtip_right, minpeakheight = 15)) 
+  #gesture duration
+  gesture_time <- diff(range(ts$time_s, na.rm = TRUE)) 
+  #average vertical height
+  vertical_height <- mean(ts$handtip_right_y)
+  #if there are no peaks, this means there is only 1 stroke
+  if(is.null(submov)){submov <- 1} 
+  
+  kinematics <- cbind(submov, vertical_height, gesture_time) #bind into kinematic object
+  return(kinematics)
+  }
+
+#loop through all the timeseries data compute per round the some kinematic info
+kinresults <-data.frame()
+for(tsfid in MTS)
+{
+  #load in the time series file
+  ts <- read.csv(paste0(MTfolder4, tsfid)) 
+  for(tr in c(1:6)) #go through each round
+  {
+    tstr <- subset(ts, round == tr) #subset the relevant portion during the round
+    gesture_count <- sum(!is.na(unique(tstr$autogesturer))) #count the number of gesture events for this round
+    ggtskin <- vector()
+    for(ges in unique(tstr$autogesturer)) #loop through gestures to extract kinematic features
+    {
+      if(!is.na(ges)) #ignore the NA gesture category
+      {
+        #EXTRACT KINEMATICS
+        ggts <- subset(tstr, autogesturer==ges)
+        if(nrow(ggts) > 6) # so sometimes a gesture is bordering a round transitions, and then you can have short gestures, lets ignore these and only keep gestures that are longer than 200ms (6 frames)
+        #add this into results and compute kinematics
+        ggtskin <- rbind(ggtskin, get.kinematics(ggts))
+      }
+    }
+    #if there are no gestures then just enter in NA's
+    if(length(ggtskin)==0){auto <- cbind(as.numeric(NA), as.numeric(NA), as.numeric(NA),tsfid,tr)}
+    #if there  are gestures then save the kinemati inof in the auto matrix
+    if(length(ggtskin)!=0){auto <- rbind(c(colMeans(ggtskin, na.rm=TRUE), tsfid,tr))}
+    auto <- cbind(auto,    gesture_count)  #add gesture count too
+    #update the dataframe with data from this iteration of the loop
+    colnames(auto) <- c("submov", "vertical_height","gesture_time", "ppnid", "round", "gesture_count")
+    kinresults <- rbind.data.frame(kinresults, auto)
+    if(length(ggtskin)!=0){rm(ggtskin)}
+  }
+}
+
+#set variable types
+kinresults[,c(1:3, 5:6)]<- apply(kinresults[,c(1:3, 5:6)] , 2, function(x) as.numeric(as.character(x)))
+
+```
+
+
+Figure 1. Kinematic changes over the rounds, for autocoded gestures  \linebreak
+```{r kinematicresults, echo= FALSE, message = FALSE, warning=FALSE}
+
+#plot first figure and repeat for other figures
+a <- ggplot(kinresults,aes(x= round, y = gesture_count)) + 
+  geom_quasirandom(color = "#3776ab", show.legend = FALSE, alpha=0.6)+ #this makes the jitter dots structured as density plots
+  geom_boxplot(aes(group=round),alpha=0)+ #add boxplots
+  geom_smooth(aes(x=round), color = "#ffd343", size= 2, method="loess" )+ #this makes a linear regression model line over the rounds
+  theme_bw() + #this makes the background white rather than grey
+  ggtitle("gesture count")+ #title
+  theme(legend.position = "none")+ #this removes the legend
+  ylab("gesture count") #vertical axis label
+#repeat for the other variables
+b <- ggplot(kinresults,aes(x= round, y = gesture_time)) + geom_quasirandom(show.legend = FALSE, alpha=0.6, color = "#3776ab")+ geom_boxplot(aes(group=round),alpha=0) + geom_smooth(aes(x=round), color = "#ffd343", size= 2, method="loess")+ theme_bw() + ggtitle("gesture \n duration (s)")+ theme(legend.position = "none") + ylab("gesture duration")
+c <- ggplot(kinresults,aes(x= round, y = vertical_height)) + geom_quasirandom(color = "#3776ab",show.legend = FALSE, alpha=0.6)+ geom_boxplot(aes(group=round),alpha=0)+ geom_smooth(aes(x=round), color = "#ffd343", size= 2, method="loess" )+ theme_bw() + ggtitle("average \nvertical height")+ theme(legend.position = "none") +ylab("average vertical height")
+d <- ggplot(kinresults,aes(x= round, y = submov)) + geom_quasirandom(color = "#3776ab", show.legend = FALSE, alpha=0.6)+ geom_boxplot(aes(group=round), alpha=0) + geom_smooth(aes(x=round),color = "#ffd343", size= 2, method="loess" )+ theme_bw() + ggtitle("submovements")+ theme(legend.position = "none")+ylab("submovements")
+
+
+grid.arrange(a, d, b, c, nrow = 1)
+```
+  
+*Note Figure 1.* It can be seen, that for over the rounds there is a clear decrease in the number of gestures detected, as well as the number of submovements. A similar trend can be oberved for the other variables, but to a lesser degree.

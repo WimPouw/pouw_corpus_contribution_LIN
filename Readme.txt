@@ -1,0 +1,2 @@
+This repository contains the scripts written by Wim Pouw for the language in interaction corpus project (contact: wimpouw@gmail.com). 
+This is only for quick inspection of the scripts; to run the scripts the repository should be downloaded via the donders repository.
